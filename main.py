@@ -6,6 +6,7 @@ from datetime import date, timedelta
 st.set_page_config(page_title="Gemini Currency Converter", page_icon="🔮", layout="centered")
 
 try:
+    # Securely get the API key from st.secrets
     GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
     genai.configure(api_key=GOOGLE_API_KEY)
 except (FileNotFoundError, KeyError):
@@ -20,6 +21,7 @@ def get_gemini_historical_rate(from_currency, to_currency, query_date):
     to force a numerical-only response.
     """
     date_str = query_date.strftime("%Y-%m-%d")
+    # This prompt is engineered to request only a number, which is crucial for reliability.
     prompt = (
         f"What was the conversion rate for 1 {from_currency} to {to_currency} on the date {date_str}? "
         "Provide only the numerical value of the exchange rate as a floating-point number. "
@@ -27,10 +29,12 @@ def get_gemini_historical_rate(from_currency, to_currency, query_date):
     )
 
     try:
-        # --- THIS IS THE ONLY LINE THAT CHANGED ---
-        model = genai.GenerativeModel('gemini-pro') # Formerly 'gemini-1.5-flash'
+        # Use the model name that is confirmed to be available for your key.
+        model = genai.GenerativeModel('models/gemini-pro')
         
         response = model.generate_content(prompt)
+        
+        # Clean the response and attempt to convert it to a number.
         cleaned_text = response.text.strip().replace(",", "")
         rate = float(cleaned_text)
         return rate
@@ -42,7 +46,7 @@ def get_gemini_historical_rate(from_currency, to_currency, query_date):
         st.error(f"An error occurred with the Gemini API: {e}")
         return None
 
-# --- UI ---
+# --- Streamlit UI ---
 st.title("🔮 Gemini Historical Currency Converter")
 st.markdown("This converter uses the Gemini API to find historical exchange rates.")
 
@@ -64,8 +68,10 @@ query_date = st.date_input(
 
 if st.button("Convert using Gemini", type="primary", use_container_width=True):
     if amount > 0 and from_currency and to_currency and query_date:
+        # Call our Gemini function to get the base rate
         rate = get_gemini_historical_rate(from_currency, to_currency, query_date)
         
+        # If the rate is valid, the Python code does the final calculation
         if rate is not None:
             converted_amount = amount * rate
             
@@ -74,4 +80,3 @@ if st.button("Convert using Gemini", type="primary", use_container_width=True):
             st.info(f"**Rate from Gemini for {query_date.strftime('%Y-%m-%d')}:**\n\n`1 {from_currency} = {rate:.4f} {to_currency}`")
         else:
             st.warning("Could not perform conversion. Please check the error message above.")
-
