@@ -6,7 +6,6 @@ from datetime import date, timedelta
 st.set_page_config(page_title="Gemini Currency Converter", page_icon="🔮", layout="centered")
 
 try:
-    # Securely get the API key from st.secrets
     GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
     genai.configure(api_key=GOOGLE_API_KEY)
 except (FileNotFoundError, KeyError):
@@ -14,16 +13,12 @@ except (FileNotFoundError, KeyError):
     st.stop()
 
 # --- Gemini API Function ---
-
-# We cache the function so we don't repeatedly ask Gemini for the same data
 @st.cache_data
 def get_gemini_historical_rate(from_currency, to_currency, query_date):
     """
     Asks the Gemini API for a historical exchange rate with a specially crafted prompt
     to force a numerical-only response.
     """
-    # 1. The Prompt Engineering
-    # This prompt is critical. It explicitly tells the model to only return a number.
     date_str = query_date.strftime("%Y-%m-%d")
     prompt = (
         f"What was the conversion rate for 1 {from_currency} to {to_currency} on the date {date_str}? "
@@ -32,23 +27,18 @@ def get_gemini_historical_rate(from_currency, to_currency, query_date):
     )
 
     try:
-        # 2. Call the Gemini API
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        response = model.generate_content(prompt)
+        # --- THIS IS THE ONLY LINE THAT CHANGED ---
+        model = genai.GenerativeModel('gemini-pro') # Formerly 'gemini-1.5-flash'
         
-        # 3. Error Handling and Parsing
-        # Try to convert the text response directly to a float.
-        # This will fail if Gemini adds any extra text, which we handle in the 'except' block.
-        cleaned_text = response.text.strip().replace(",", "") # Clean up whitespace and commas
+        response = model.generate_content(prompt)
+        cleaned_text = response.text.strip().replace(",", "")
         rate = float(cleaned_text)
         return rate
     
     except ValueError:
-        # This catches errors if the response is not a clean number.
         st.error(f"Gemini's response was not a valid number. Response: '{response.text}'")
         return None
     except Exception as e:
-        # This catches other potential API errors.
         st.error(f"An error occurred with the Gemini API: {e}")
         return None
 
@@ -74,10 +64,8 @@ query_date = st.date_input(
 
 if st.button("Convert using Gemini", type="primary", use_container_width=True):
     if amount > 0 and from_currency and to_currency and query_date:
-        # Call our Gemini function
         rate = get_gemini_historical_rate(from_currency, to_currency, query_date)
         
-        # The code's logic takes over after getting the rate
         if rate is not None:
             converted_amount = amount * rate
             
@@ -85,5 +73,5 @@ if st.button("Convert using Gemini", type="primary", use_container_width=True):
             st.markdown(f"## {amount:,.2f} {from_currency} = {converted_amount:,.2f} {to_currency}")
             st.info(f"**Rate from Gemini for {query_date.strftime('%Y-%m-%d')}:**\n\n`1 {from_currency} = {rate:.4f} {to_currency}`")
         else:
-            # Error message is shown if the Gemini function failed
             st.warning("Could not perform conversion. Please check the error message above.")
+
